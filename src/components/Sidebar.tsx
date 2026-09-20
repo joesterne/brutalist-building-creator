@@ -15,7 +15,7 @@ export function Sidebar() {
       const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
       setLogs(prev => [...prev, {time, msg: `SELECTED: ENTITY_${selectedBuilding.id.substring(0, 4).toUpperCase()}`, type: 'text-zinc-300'}].slice(-7));
     }
-  }, [selectedBuilding]);
+  }, [selectedBuilding?.id]);
 
   return (
     <aside className="w-72 border-l border-white/5 bg-[#0a0a0a] p-6 flex flex-col z-10">

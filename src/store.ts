@@ -12,6 +12,7 @@ interface AppState {
   lightIntensity: number;
   cameraMode: 'perspective' | 'topdown';
   addBuilding: (x: number, z: number, options?: Partial<BuildingData>) => void;
+  recordHistory: () => void;
   updateBuilding: (id: string, data: Partial<BuildingData>) => void;
   deleteBuilding: (id: string) => void;
   selectBuilding: (id: string | null) => void;
@@ -25,8 +26,10 @@ interface AppState {
   redo: () => void;
 }
 
+const MAX_HISTORY = 40;
+
 const saveToPast = (state: AppState) => ({
-  past: [...state.past, state.buildings],
+  past: [...state.past.slice(-MAX_HISTORY), state.buildings],
   future: []
 });
 
@@ -80,8 +83,8 @@ export const useStore = create<AppState>((set) => ({
     selectedId: state.selectedId === id ? null : state.selectedId
   })),
   selectBuilding: (id) => set({ selectedId: id }),
+  recordHistory: () => set((state) => saveToPast(state)),
   moveBuilding: (id, x, z) => set((state) => ({
-    ...saveToPast(state),
     buildings: state.buildings.map(b => b.id === id ? { ...b, x, z } : b)
   })),
   toggleEnvironmentMode: () => set((state) => ({
