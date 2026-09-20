@@ -1,0 +1,6 @@
+{
+  "name": "Brutalist Building Creator",
+  "description": "A procedural brutalist building creator with draggable, editable buildings and realistic concrete materials.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
