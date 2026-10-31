@@ -1,15 +1,34 @@
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows, PerspectiveCamera, OrthographicCamera } from '@react-three/drei';
 import { EffectComposer, N8AO, Bloom } from '@react-three/postprocessing';
 import { useStore } from '../store';
+import { useShallow } from 'zustand/react/shallow';
 import { Building } from './Building';
+
+// The realistic environment loads an HDR from a remote CDN at runtime. If it
+// is slow or fails (offline, CDN down), the canvas used to suspend/blank with
+// no recourse; now the Environment sits behind Suspense + this boundary and
+// the scene degrades to its lights alone.
+class EnvironmentBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
 
 function EnvironmentSetup({ mode, intensity }: { mode: 'abstract' | 'realistic', intensity: number }) {
   if (mode === 'realistic') {
     return (
       <>
-        <Environment preset="dawn" background />
+        <EnvironmentBoundary>
+          <Suspense fallback={null}>
+            <Environment preset="dawn" background />
+          </Suspense>
+        </EnvironmentBoundary>
         <directionalLight
           castShadow
           position={[50, 50, 50]}
@@ -41,16 +60,28 @@ function EnvironmentSetup({ mode, intensity }: { mode: 'abstract' | 'realistic',
 }
 
 export function Scene() {
-  const { 
-    buildings, 
-    selectedId, 
-    selectBuilding, 
-    recordHistory, 
-    moveBuilding, 
-    environmentMode, 
-    lightIntensity, 
-    cameraMode 
-  } = useStore();
+  // useShallow: subscribing to the whole store re-rendered the scene (and
+  // reconciled the whole building list) on every store change, e.g. each
+  // tick of the light-intensity slider.
+  const {
+    buildings,
+    selectedId,
+    selectBuilding,
+    recordHistory,
+    moveBuilding,
+    environmentMode,
+    lightIntensity,
+    cameraMode
+  } = useStore(useShallow((state) => ({
+    buildings: state.buildings,
+    selectedId: state.selectedId,
+    selectBuilding: state.selectBuilding,
+    recordHistory: state.recordHistory,
+    moveBuilding: state.moveBuilding,
+    environmentMode: state.environmentMode,
+    lightIntensity: state.lightIntensity,
+    cameraMode: state.cameraMode
+  })));
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const orbitRef = useRef<any>(null);

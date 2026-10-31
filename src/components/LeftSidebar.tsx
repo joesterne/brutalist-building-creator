@@ -1,9 +1,21 @@
 import React from 'react';
 import { useStore } from '../store';
+import { useShallow } from 'zustand/react/shallow';
 import { Plus, Trash2, Undo2, Redo2 } from 'lucide-react';
 
 export function LeftSidebar() {
-  const { buildings, selectedId, addBuilding, updateBuilding, deleteBuilding, generateCityBlock, undo, redo, past, future } = useStore();
+  const { buildings, selectedId, addBuilding, updateBuilding, deleteBuilding, generateCityBlock, undo, redo, past, future } = useStore(useShallow((state) => ({
+    buildings: state.buildings,
+    selectedId: state.selectedId,
+    addBuilding: state.addBuilding,
+    updateBuilding: state.updateBuilding,
+    deleteBuilding: state.deleteBuilding,
+    generateCityBlock: state.generateCityBlock,
+    undo: state.undo,
+    redo: state.redo,
+    past: state.past,
+    future: state.future
+  })));
   const selectedBuilding = buildings.find(b => b.id === selectedId);
 
   return (

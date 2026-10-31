@@ -33,6 +33,29 @@ const MAX_HISTORY = 40;
 
 const STYLES: BuildingData['style'][] = ['monolith', 'stacked', 'tower', 'podium', 'cantilever', 'slab'];
 
+// Shared random-building factory: addBuilding and generateCityBlock used to
+// duplicate the whole field block with different ranges, so any change to
+// random generation had to be made twice.
+const randomBuilding = (
+  x: number,
+  z: number,
+  ranges: { floorsMin: number; floorsSpan: number; sizeSpan: number; rotationY: number },
+  options?: Partial<BuildingData>
+): BuildingData => ({
+  id: uuidv4(),
+  x,
+  z,
+  seed: Math.floor(Math.random() * 10000),
+  textureSeed: Math.floor(Math.random() * 100),
+  floors: ranges.floorsMin + Math.floor(Math.random() * ranges.floorsSpan),
+  baseWidth: 4 + Math.random() * ranges.sizeSpan,
+  baseDepth: 4 + Math.random() * ranges.sizeSpan,
+  coreHeight: 1 + Math.random() * 3,
+  style: STYLES[Math.floor(Math.random() * STYLES.length)],
+  rotationY: ranges.rotationY,
+  ...options
+});
+
 const saveToPast = (state: AppState) => ({
   // slice(-(MAX - 1)) so that after appending, past holds at most MAX_HISTORY.
   past: [...state.past.slice(-(MAX_HISTORY - 1)), state.buildings],
@@ -69,20 +92,7 @@ export const useStore = create<AppState>((set) => ({
   _lastUpdateAt: 0,
   addBuilding: (x, z, options) => set((state) => ({
     ...saveToPast(state),
-    buildings: [...state.buildings, {
-      id: uuidv4(),
-      x,
-      z,
-      seed: Math.floor(Math.random() * 10000),
-      textureSeed: Math.floor(Math.random() * 100),
-      floors: 10 + Math.floor(Math.random() * 10),
-      baseWidth: 4 + Math.random() * 4,
-      baseDepth: 4 + Math.random() * 4,
-      coreHeight: 1 + Math.random() * 3,
-      style: STYLES[Math.floor(Math.random() * STYLES.length)],
-      rotationY: 0,
-      ...options
-    }]
+    buildings: [...state.buildings, randomBuilding(x, z, { floorsMin: 10, floorsSpan: 10, sizeSpan: 4, rotationY: 0 }, options)]
   })),
   updateBuilding: (id, data) => set((state) => {
     // Sliders call this on every tick of a drag, and a full snapshot per tick
@@ -127,19 +137,11 @@ export const useStore = create<AppState>((set) => ({
         // Skip some spots randomly to make it look organic
         if (Math.random() > 0.85) continue;
         
-        newBuildings.push({
-          id: uuidv4(),
-          x: startX + i * spacing + (Math.random() * 2 - 1),
-          z: startZ + j * spacing + (Math.random() * 2 - 1),
-          seed: Math.floor(Math.random() * 10000),
-          textureSeed: Math.floor(Math.random() * 100),
-          floors: 5 + Math.floor(Math.random() * 25),
-          baseWidth: 4 + Math.random() * 5,
-          baseDepth: 4 + Math.random() * 5,
-          coreHeight: 1 + Math.random() * 3,
-          style: STYLES[Math.floor(Math.random() * STYLES.length)],
-          rotationY: Math.floor(Math.random() * 4) * 90
-        });
+        newBuildings.push(randomBuilding(
+          startX + i * spacing + (Math.random() * 2 - 1),
+          startZ + j * spacing + (Math.random() * 2 - 1),
+          { floorsMin: 5, floorsSpan: 25, sizeSpan: 5, rotationY: Math.floor(Math.random() * 4) * 90 }
+        ));
       }
     }
 
