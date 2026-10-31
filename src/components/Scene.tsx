@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment, ContactShadows, PerspectiveCamera, OrthographicCamera } from '@react-three/drei';
 import { EffectComposer, N8AO, Bloom } from '@react-three/postprocessing';
@@ -54,25 +54,43 @@ export function Scene() {
 
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const orbitRef = useRef<any>(null);
+  // Set on pointer-down; the history snapshot is taken only when the drag
+  // actually moves, so plain selection clicks don't consume undo entries.
+  const pendingHistoryRef = useRef<string | null>(null);
 
   const handlePointerDown = useCallback((id: string, e: any) => {
     e.stopPropagation();
     selectBuilding(id);
-    recordHistory();
+    pendingHistoryRef.current = id;
     setDraggingId(id);
     if (orbitRef.current) orbitRef.current.enabled = false;
-  }, [selectBuilding, recordHistory]);
+  }, [selectBuilding]);
 
   const handlePointerUp = useCallback(() => {
+    pendingHistoryRef.current = null;
     setDraggingId(null);
     if (orbitRef.current) orbitRef.current.enabled = true;
   }, []);
 
+  // Releasing the pointer outside the canvas never reaches the Canvas onPointerUp;
+  // without this, the drag (and disabled OrbitControls) stuck forever.
+  useEffect(() => {
+    if (!draggingId) return;
+    const up = () => handlePointerUp();
+    window.addEventListener('pointerup', up);
+    return () => window.removeEventListener('pointerup', up);
+  }, [draggingId, handlePointerUp]);
+
   const handlePointerMove = useCallback((e: any) => {
     if (draggingId) {
+      if (pendingHistoryRef.current === draggingId) {
+        // First actual movement of this drag: snapshot the pre-drag state.
+        recordHistory();
+        pendingHistoryRef.current = null;
+      }
       moveBuilding(draggingId, e.point.x, e.point.z);
     }
-  }, [draggingId, moveBuilding]);
+  }, [draggingId, moveBuilding, recordHistory]);
 
   const handleFloorClick = useCallback((e: any) => {
     e.stopPropagation();
@@ -80,11 +98,12 @@ export function Scene() {
   }, [selectBuilding]);
 
   return (
-    <Canvas 
-      shadows 
+    <Canvas
+      shadows
       dpr={[1, 1.75]}
       gl={{ powerPreference: 'high-performance', antialias: false }}
       onPointerUp={handlePointerUp}
+      onPointerMissed={handlePointerUp}
     >
       <React.Suspense fallback={null}>
         {cameraMode === 'perspective' && (

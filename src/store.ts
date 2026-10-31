@@ -11,6 +11,9 @@ interface AppState {
   weathering: boolean;
   lightIntensity: number;
   cameraMode: 'perspective' | 'topdown';
+  // Internal bookkeeping for updateBuilding history coalescing (not app data).
+  _lastUpdateKey: string | null;
+  _lastUpdateAt: number;
   addBuilding: (x: number, z: number, options?: Partial<BuildingData>) => void;
   recordHistory: () => void;
   updateBuilding: (id: string, data: Partial<BuildingData>) => void;
@@ -28,9 +31,15 @@ interface AppState {
 
 const MAX_HISTORY = 40;
 
+const STYLES: BuildingData['style'][] = ['monolith', 'stacked', 'tower', 'podium', 'cantilever', 'slab'];
+
 const saveToPast = (state: AppState) => ({
-  past: [...state.past.slice(-MAX_HISTORY), state.buildings],
-  future: []
+  // slice(-(MAX - 1)) so that after appending, past holds at most MAX_HISTORY.
+  past: [...state.past.slice(-(MAX_HISTORY - 1)), state.buildings],
+  future: [],
+  // Any real history push ends an updateBuilding coalescing burst.
+  _lastUpdateKey: null,
+  _lastUpdateAt: 0
 });
 
 export const useStore = create<AppState>((set) => ({
@@ -56,6 +65,8 @@ export const useStore = create<AppState>((set) => ({
   weathering: false,
   lightIntensity: 1.5,
   cameraMode: 'perspective',
+  _lastUpdateKey: null,
+  _lastUpdateAt: 0,
   addBuilding: (x, z, options) => set((state) => ({
     ...saveToPast(state),
     buildings: [...state.buildings, {
@@ -68,15 +79,26 @@ export const useStore = create<AppState>((set) => ({
       baseWidth: 4 + Math.random() * 4,
       baseDepth: 4 + Math.random() * 4,
       coreHeight: 1 + Math.random() * 3,
-      style: ['monolith', 'stacked', 'tower', 'podium', 'cantilever', 'slab'][Math.floor(Math.random() * 6)] as any,
+      style: STYLES[Math.floor(Math.random() * STYLES.length)],
       rotationY: 0,
       ...options
     }]
   })),
-  updateBuilding: (id, data) => set((state) => ({
-    ...saveToPast(state),
-    buildings: state.buildings.map(b => b.id === id ? { ...b, ...data } : b)
-  })),
+  updateBuilding: (id, data) => set((state) => {
+    // Sliders call this on every tick of a drag, and a full snapshot per tick
+    // floods the undo stack with intermediate values. Coalesce consecutive
+    // updates to the same building + same fields within 1s into the burst's
+    // first history entry; undo then restores the pre-drag state in one step.
+    const key = `${id}:${Object.keys(data).sort().join(',')}`;
+    const now = Date.now();
+    const coalesce = state._lastUpdateKey === key && now - state._lastUpdateAt < 1000;
+    return {
+      ...(coalesce ? { future: [] as BuildingData[][] } : saveToPast(state)),
+      _lastUpdateKey: key,
+      _lastUpdateAt: now,
+      buildings: state.buildings.map(b => b.id === id ? { ...b, ...data } : b)
+    };
+  }),
   deleteBuilding: (id) => set((state) => ({
     ...saveToPast(state),
     buildings: state.buildings.filter(b => b.id !== id),
@@ -115,7 +137,7 @@ export const useStore = create<AppState>((set) => ({
           baseWidth: 4 + Math.random() * 5,
           baseDepth: 4 + Math.random() * 5,
           coreHeight: 1 + Math.random() * 3,
-          style: ['monolith', 'stacked', 'tower', 'podium', 'cantilever', 'slab'][Math.floor(Math.random() * 6)] as any,
+          style: STYLES[Math.floor(Math.random() * STYLES.length)],
           rotationY: Math.floor(Math.random() * 4) * 90
         });
       }
@@ -137,7 +159,9 @@ export const useStore = create<AppState>((set) => ({
       past: newPast,
       future: [state.buildings, ...state.future],
       buildings: previous,
-      selectedId: null
+      selectedId: null,
+      _lastUpdateKey: null,
+      _lastUpdateAt: 0
     };
   }),
   redo: () => set((state) => {
@@ -145,10 +169,13 @@ export const useStore = create<AppState>((set) => ({
     const next = state.future[0];
     const newFuture = state.future.slice(1);
     return {
-      past: [...state.past, state.buildings],
+      // Capped like saveToPast; this push previously grew past without limit.
+      past: [...state.past.slice(-(MAX_HISTORY - 1)), state.buildings],
       future: newFuture,
       buildings: next,
-      selectedId: null
+      selectedId: null,
+      _lastUpdateKey: null,
+      _lastUpdateAt: 0
     };
   })
 }));

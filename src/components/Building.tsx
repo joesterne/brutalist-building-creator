@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useTexture } from '@react-three/drei';
 import { BuildingData } from '../types';
 import { generateBlocks } from '../utils/generator';
@@ -26,8 +26,9 @@ function BuildingComponent({ data, isSelected, onPointerDown }: Props) {
   const concreteTexture = useTexture(TEXTURE_PATH);
   const { weathering } = useStore();
   
-  // Configure texture repeat once
-  useMemo(() => {
+  // Configure texture repeat once. This is a side effect on a shared cached
+  // texture, so it belongs in an effect — useMemo may be discarded and re-run.
+  useEffect(() => {
     if (concreteTexture) {
       concreteTexture.wrapS = THREE.RepeatWrapping;
       concreteTexture.wrapT = THREE.RepeatWrapping;

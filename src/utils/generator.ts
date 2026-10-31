@@ -39,7 +39,7 @@ export function generateBlocks(data: BuildingData): BlockData[] {
       blocks.push({ w: finalW, h: floorHeight * 0.8, d: finalD, x: 0, y: i * floorHeight + floorHeight / 2, z: 0, type: 'floor' });
       blocks.push({ w: finalW * 0.9, h: floorHeight, d: finalD * 0.9, x: 0, y: i * floorHeight + floorHeight / 2, z: 0, type: 'window' });
     }
-  } else if (data.style === 'monolith' || (data.style as any) === 'monolithic') {
+  } else if (data.style === 'monolith') {
     const numBlocks = Math.max(2, Math.floor(data.floors / 4));
     let currentY = 0;
     for (let i = 0; i < numBlocks; i++) {
@@ -52,12 +52,16 @@ export function generateBlocks(data: BuildingData): BlockData[] {
       blocks.push({ w: bw * 0.95, h: bh, d: bd * 0.95, x: 0, y: currentY + bh / 2, z: 0, type: 'window' });
       
       const numFins = Math.floor(bw * 2);
-      for (let j = 0; j <= numFins; j++) {
-        blocks.push({
-          w: 0.1, h: bh * 0.9, d: bd * 1.05,
-          x: -bw/2 + (j/numFins) * bw, y: currentY + (bh * 0.9) / 2, z: 0,
-          type: 'floor'
-        });
+      // bw tapers per block and can fall below 0.5, making numFins 0 — the loop
+      // would divide by it ((j/numFins) = NaN) and corrupt the merged geometry.
+      if (numFins >= 1) {
+        for (let j = 0; j <= numFins; j++) {
+          blocks.push({
+            w: 0.1, h: bh * 0.9, d: bd * 1.05,
+            x: -bw/2 + (j/numFins) * bw, y: currentY + (bh * 0.9) / 2, z: 0,
+            type: 'floor'
+          });
+        }
       }
       currentY += bh;
     }
